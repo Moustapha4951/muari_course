@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#FFFFFF</color>
+    <color name="wasalny_primary">#2E8BC0</color>
+    <color name="wasalny_secondary">#64C28A</color>
+    <color name="wasalny_accent">#D7CD7C</color>
+</resources>

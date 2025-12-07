@@ -1,0 +1,86 @@
+{
+  "project_info": {
+    "project_number": "434766781125",
+    "project_id": "muari-course",
+    "storage_bucket": "muari-course.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434766781125:android:f967a295a0488901a02eac",
+        "android_client_info": {
+          "package_name": "com.mauri_course.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBD3Kv5IhcCroUwCzOEbbEEfPY0WWhAEbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434766781125:android:d6d53933605ec4e9a02eac",
+        "android_client_info": {
+          "package_name": "com.muari_course.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBD3Kv5IhcCroUwCzOEbbEEfPY0WWhAEbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434766781125:android:a727090f5d21609ca02eac",
+        "android_client_info": {
+          "package_name": "com.muaricourse.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBD3Kv5IhcCroUwCzOEbbEEfPY0WWhAEbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434766781125:android:9b68bb3702cf05ada02eac",
+        "android_client_info": {
+          "package_name": "com.muaricourse.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBD3Kv5IhcCroUwCzOEbbEEfPY0WWhAEbc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

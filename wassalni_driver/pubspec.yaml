@@ -1,0 +1,58 @@
+name: rimapp_driver
+description: "RimApp Driver App"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  firebase_core: ^2.24.2
+  cloud_firestore: ^4.14.0
+  google_fonts: ^6.1.0
+  shared_preferences: ^2.2.2
+  google_maps_flutter: ^2.4.0
+  geolocator: ^10.1.0
+  flutter_switch: ^0.3.2
+  flutter_local_notifications: ^19.0.0
+  flutter_polyline_points: ^2.1.0
+  permission_handler: ^12.0.0+1
+  intl: ^0.20.2
+  url_launcher: ^6.1.14
+  dotted_line: ^3.2.3
+  rxdart: ^0.28.0
+  audioplayers: ^5.2.1
+  flutter_lints: ^2.0.0
+  flutter_launcher_icons: ^0.14.4
+  fluttertoast: ^8.2.12
+  
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#1E88E5"
+  android_gravity: center
+  ios_content_mode: center
+  android_adaptive_icon_foreground_scale_factor: 0.7
+  android_adaptive_icon_padding: true
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/sounds/notification.mp3
+    - assets/icon/icon.png
+    - assets/logo.png
+    - assets/images/

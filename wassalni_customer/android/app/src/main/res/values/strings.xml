@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RimApp</string>
+    <string name="ride_updates_channel_name">تحديثات الرحلات</string>
+    <string name="ride_updates_channel_description">إشعارات حالة الرحلة</string>
+</resources>

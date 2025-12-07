@@ -1,0 +1,596 @@
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/place.dart';
+import '../models/price.dart';
+import '../utils/app_theme.dart';
+import 'package:intl/intl.dart' as intl;
+import 'dart:math';
+
+class PreviewRideScreen extends StatefulWidget {
+  final String customerName;
+  final String customerPhone;
+  final Place pickupLocation;
+  final Place? dropoffLocation;
+  final bool isOpenRide;
+
+  const PreviewRideScreen({
+    super.key,
+    required this.customerName,
+    required this.customerPhone,
+    required this.pickupLocation,
+    this.dropoffLocation,
+    required this.isOpenRide,
+  });
+
+  @override
+  State<PreviewRideScreen> createState() => _PreviewRideScreenState();
+}
+
+class _PreviewRideScreenState extends State<PreviewRideScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  Set<Polyline> _polylines = {};
+  bool _isLoading = false;
+  bool _isSending = false;
+  String? _error;
+  
+  double _distance = 0;
+  double _duration = 0;
+  double _fare = 0;
+  Price? _currentPrice;
+
+  final TextEditingController _pickupNameController = TextEditingController();
+  final TextEditingController _dropoffNameController = TextEditingController();
+  final TextEditingController _fareController = TextEditingController();
+  final TextEditingController _distanceController = TextEditingController();
+
+  bool _isPickupEdited = false;
+  bool _isDropoffEdited = false;
+  bool _isFareEdited = false;
+  bool _isDistanceEdited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    setState(() => _isLoading = true);
+    try {
+      _initializeControllers();
+      await _loadCurrentPrice();
+      await _setupMapAndCalculateDistance();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _initializeControllers() {
+    _pickupNameController.text = widget.pickupLocation.name;
+    if (widget.dropoffLocation != null) {
+      _dropoffNameController.text = widget.dropoffLocation!.name;
+    }
+  }
+
+  Future<void> _loadCurrentPrice() async {
+    try {
+      final priceQuery = await FirebaseFirestore.instance
+          .collection('prices')
+          .where('isActive', isEqualTo: true)
+          .orderBy('lastUpdated', descending: true)
+          .limit(1)
+          .get();
+
+      if (priceQuery.docs.isNotEmpty) {
+        final data = priceQuery.docs.first.data();
+        _currentPrice = Price(
+          id: priceQuery.docs.first.id,
+          minimumFare: (data['minimumFare'] ?? 100.0).toDouble(),
+          pricePerKm: (data['pricePerKm'] ?? 20.0).toDouble(),
+          maximumKm: (data['maximumKm'] ?? 1.9).toDouble(),
+          openRideBaseFare: (data['openRideBaseFare'] ?? 50.0).toDouble(),
+          openRidePerMinute: (data['openRidePerMinute'] ?? 1.0).toDouble(),
+          nightFareMultiplier: (data['nightFareMultiplier'] ?? 1.2).toDouble(),
+          driverShare: (data['driverShare'] ?? 0.8).toDouble(),
+          appCommission: (data['appCommission'] ?? 0.2).toDouble(),
+          lastUpdated: (data['lastUpdated'] as Timestamp).toDate(),
+        );
+      }
+    } catch (e) {
+      throw Exception('خطأ في تحميل التسعيرة: $e');
+    }
+  }
+
+  Future<void> _setupMapAndCalculateDistance() async {
+    final markers = {
+      Marker(
+        markerId: const MarkerId('pickup'),
+        position: LatLng(
+          widget.pickupLocation.location.latitude,
+          widget.pickupLocation.location.longitude,
+        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        infoWindow: InfoWindow(title: _pickupNameController.text),
+      ),
+    };
+
+    if (widget.dropoffLocation != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId('dropoff'),
+          position: LatLng(
+            widget.dropoffLocation!.location.latitude,
+            widget.dropoffLocation!.location.longitude,
+          ),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: InfoWindow(title: _dropoffNameController.text),
+        ),
+      );
+
+      _calculateDistanceAndDuration();
+
+      setState(() {
+        _polylines = {
+          Polyline(
+            polylineId: const PolylineId('route'),
+            points: [
+              LatLng(
+                widget.pickupLocation.location.latitude,
+                widget.pickupLocation.location.longitude,
+              ),
+              LatLng(
+                widget.dropoffLocation!.location.latitude,
+                widget.dropoffLocation!.location.longitude,
+              ),
+            ],
+            color: AppColors.primary,
+            width: 4,
+          ),
+        };
+      });
+    }
+
+    setState(() => _markers = markers);
+  }
+
+  void _calculateDistanceAndDuration() {
+    if (widget.dropoffLocation == null) return;
+
+    final distance = _calculateDistance(
+      widget.pickupLocation.location.latitude,
+      widget.pickupLocation.location.longitude,
+      widget.dropoffLocation!.location.latitude,
+      widget.dropoffLocation!.location.longitude,
+    );
+
+    final duration = (distance / 40) * 60; // Assuming 40 km/h average speed
+
+    setState(() {
+      _distance = distance;
+      _duration = duration;
+      _distanceController.text = distance.toStringAsFixed(2);
+    });
+
+    _calculateFare();
+  }
+
+  double _calculateDistance(double startLat, double startLng, double endLat, double endLng) {
+    const double earthRadius = 6371; // km
+    final double latDiff = _toRadians(endLat - startLat);
+    final double lngDiff = _toRadians(endLng - startLng);
+
+    final double a = sin(latDiff / 2) * sin(latDiff / 2) +
+        cos(_toRadians(startLat)) *
+            cos(_toRadians(endLat)) *
+            sin(lngDiff / 2) *
+            sin(lngDiff / 2);
+
+    final double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadius * c;
+  }
+
+  double _toRadians(double degree) {
+    return degree * (pi / 180);
+  }
+
+  void _calculateFare() {
+    if (_currentPrice == null) return;
+
+    final hour = DateTime.now().hour;
+    final isNightTime = hour >= 22 || hour < 6;
+
+    if (widget.isOpenRide) {
+      _fare = _currentPrice!.openRideBaseFare;
+    } else {
+      final distance = double.tryParse(_distanceController.text) ?? _distance;
+      _fare = _currentPrice!.calculateRegularRideFare(distance, isNightTime);
+    }
+
+    _fareController.text = _fare.toStringAsFixed(2);
+  }
+
+  Future<void> _sendRide() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSending = true;
+      _error = null;
+    });
+
+    try {
+      final customerId = await _getOrCreateCustomer();
+      final ridesRef = FirebaseFirestore.instance.collection('rides');
+      
+      final lastRideDoc = await ridesRef
+          .orderBy('index', descending: true)
+          .limit(1)
+          .get();
+      
+      final lastIndex = lastRideDoc.docs.isEmpty 
+          ? 0 
+          : lastRideDoc.docs.first.data()['index'] ?? 0;
+
+      await ridesRef.add({
+        'index': lastIndex + 1,
+        'customerName': widget.customerName,
+        'customerPhone': widget.customerPhone,
+        'customerId': customerId,
+        'pickupAddress': _pickupNameController.text,
+        'pickupLocation': GeoPoint(
+          widget.pickupLocation.location.latitude,
+          widget.pickupLocation.location.longitude,
+        ),
+        'dropoffAddress': widget.dropoffLocation != null ? _dropoffNameController.text : null,
+        'dropoffLocation': widget.dropoffLocation != null
+            ? GeoPoint(
+                widget.dropoffLocation!.location.latitude,
+                widget.dropoffLocation!.location.longitude,
+              )
+            : null,
+        'isOpenRide': widget.isOpenRide,
+        'status': 'pending',
+        'createdAt': Timestamp.now(),
+        'fare': double.parse(_fareController.text),
+        'distance': double.parse(_distanceController.text),
+        'duration': _duration,
+        'city': widget.pickupLocation.cityId,
+        'priceId': _currentPrice!.id,
+        'priceDetails': _currentPrice!.toMap(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('تم إرسال الطلب بنجاح'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      setState(() => _error = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('حدث خطأ: $_error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
+  Future<String> _getOrCreateCustomer() async {
+    try {
+      final customersRef = FirebaseFirestore.instance.collection('customers');
+      final customerQuery = await customersRef
+          .where('phone', isEqualTo: widget.customerPhone)
+          .limit(1)
+          .get();
+
+      if (customerQuery.docs.isNotEmpty) {
+        return customerQuery.docs.first.id;
+      }
+
+      final newCustomerDoc = await customersRef.add({
+        'name': widget.customerName,
+        'phone': widget.customerPhone,
+        'createdAt': Timestamp.now(),
+        'ridesCount': 0,
+        'rating': 5.0,
+        'totalSpent': 0,
+      });
+
+      return newCustomerDoc.id;
+    } catch (e) {
+      throw Exception('خطأ في إنشاء/البحث عن العميل: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.isOpenRide ? 'رحلة مفتوحة' : 'معاينة الرحلة',
+          style: AppTextStyles.arabicTitle.copyWith(color: AppColors.surface),
+        ),
+        backgroundColor: AppColors.primary,
+        centerTitle: true,
+      ),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // Map Section
+                  Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(
+                            widget.pickupLocation.location.latitude,
+                            widget.pickupLocation.location.longitude,
+                          ),
+                          zoom: 15,
+                        ),
+                        markers: _markers,
+                        polylines: _polylines,
+                        onMapCreated: (controller) => _mapController = controller,
+                        myLocationEnabled: false,
+                        zoomControlsEnabled: false,
+                        mapToolbarEnabled: false,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Customer Info
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          child: Icon(Icons.person_outline, color: AppColors.primary),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.customerName,
+                                style: AppTextStyles.arabicBody.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                widget.customerPhone,
+                                style: AppTextStyles.arabicBodySmall.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Location Details
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'تفاصيل الموقع',
+                          style: AppTextStyles.arabicTitle,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _pickupNameController,
+                          decoration: InputDecoration(
+                            labelText: 'موقع الانطلاق',
+                            prefixIcon: Icon(Icons.location_on, color: AppColors.primary),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value?.isEmpty ?? true) {
+                              return 'يرجى إدخال موقع الانطلاق';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) => setState(() => _isPickupEdited = true),
+                        ),
+                        if (!widget.isOpenRide) ...[
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _dropoffNameController,
+                            decoration: InputDecoration(
+                              labelText: 'موقع الوصول',
+                              prefixIcon: Icon(Icons.location_on, color: AppColors.primary),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            validator: (value) {
+                              if (!widget.isOpenRide && (value?.isEmpty ?? true)) {
+                                return 'يرجى إدخال موقع الوصول';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) => setState(() => _isDropoffEdited = true),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Price and Distance
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'السعر والمسافة',
+                          style: AppTextStyles.arabicTitle,
+                        ),
+                        const SizedBox(height: 16),
+                        if (!widget.isOpenRide)
+                          Column(
+                            children: [
+                              TextFormField(
+                                controller: _distanceController,
+                                decoration: InputDecoration(
+                                  labelText: 'المسافة (كم)',
+                                  prefixIcon: Icon(Icons.straight, color: AppColors.primary),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (value) {
+                                  if (!widget.isOpenRide && (value?.isEmpty ?? true)) {
+                                    return 'يرجى إدخال المسافة';
+                                  }
+                                  if (double.tryParse(value!) == null) {
+                                    return 'يرجى إدخال رقم صحيح';
+                                  }
+                                  return null;
+                                },
+                                onChanged: (value) {
+                                  setState(() {
+                                    _isDistanceEdited = true;
+                                    if (double.tryParse(value) != null) {
+                                      _calculateFare();
+                                    }
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        TextFormField(
+                          controller: _fareController,
+                          decoration: InputDecoration(
+                            labelText: 'السعر (MRU)',
+                            prefixIcon: Icon(Icons.paid, color: AppColors.primary),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value?.isEmpty ?? true) {
+                              return 'يرجى إدخال السعر';
+                            }
+                            if (double.tryParse(value!) == null) {
+                              return 'يرجى إدخال رقم صحيح';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) => setState(() => _isFareEdited = true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Error Message
+                  if (_error != null)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.error),
+                      ),
+                      child: Text(
+                        _error!,
+                        style: AppTextStyles.arabicBody.copyWith(
+                          color: AppColors.error,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+
+                  // Submit Button
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: _isSending ? null : _sendRide,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isSending
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.surface,
+                            ),
+                          )
+                        : Text(
+                            'إرسال الطلب',
+                            style: AppTextStyles.arabicBody.copyWith(
+                              color: AppColors.surface,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    _pickupNameController.dispose();
+    _dropoffNameController.dispose();
+    _fareController.dispose();
+    _distanceController.dispose();
+    super.dispose();
+  }
+}

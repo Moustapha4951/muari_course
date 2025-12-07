@@ -1,0 +1,2 @@
+C:/Users/moust/Desktop/wassalni_driver/admin_app/android/app/.cxx/RelWithDebInfo/2j5s5c3s/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/moust/Desktop/wassalni_driver/admin_app/android/app/.cxx/RelWithDebInfo/2j5s5c3s/arm64-v8a/CMakeFiles/rebuild_cache.dir
