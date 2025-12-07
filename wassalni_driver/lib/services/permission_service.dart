@@ -5,7 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 /// خدمة للتعامل مع أذونات النظام المختلفة
 class PermissionService {
   static const MethodChannel _channel =
-      MethodChannel('com.example.wassalni_driver/system_overlay');
+      MethodChannel('com.muari_course.driver/system_overlay');
 
   /// طلب جميع الأذونات المطلوبة للتطبيق
   static Future<bool> requestAllPermissions(BuildContext context) async {

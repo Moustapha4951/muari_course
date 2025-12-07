@@ -751,7 +751,7 @@ class NotificationService {
       try {
         debugPrint(
             '🔵 [LOGGING] showRideNotification: Attempting to launch app via MethodChannel...');
-        const platform = MethodChannel('com.rimapp.driver/app_launcher');
+        const platform = MethodChannel('com.muari_course.driver/app_launcher');
         await platform.invokeMethod('launchApp', {
           'rideId': rideId,
           'pickupAddress': pickupAddress,

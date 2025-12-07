@@ -71,7 +71,7 @@ Future<void> _setupNotificationChannels() async {
 
 Future<void> _startForegroundService() async {
   try {
-    const platform = MethodChannel('com.rimapp.driver/app_launcher');
+    const platform = MethodChannel('com.muari_course.driver/app_launcher');
     // إزالة استدعاء startForegroundService لأنه غير موجود في MainActivity
     debugPrint('تم تخطي بدء تشغيل الخدمة الخلفية');
   } catch (e) {

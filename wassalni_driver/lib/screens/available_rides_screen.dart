@@ -381,7 +381,7 @@ class _AvailableRidesScreenState extends State<AvailableRidesScreen> {
                                                       child: Row(
                                                         mainAxisSize: MainAxisSize.min,
                                                         children: [
-                                                          Icon(
+                                                          const Icon(
                                                             Icons.near_me_rounded,
                                                             size: 16,
                                                             color: AppColors.info,
@@ -487,9 +487,15 @@ class _AvailableRidesScreenState extends State<AvailableRidesScreen> {
                                       ),
                                     ),
                                   );
-                    },
-                  ),
+                                },
+                              ),
+                            ),
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

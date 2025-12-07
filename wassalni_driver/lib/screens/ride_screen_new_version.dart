@@ -513,6 +513,187 @@ class _RideScreenNewVersionState extends State<RideScreenNewVersion> {
     );
   }
 
+  Widget _buildLoadingIndicator() {
+    return const Center(
+      child: CircularProgressIndicator(
+        color: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildErrorCard(String message, {VoidCallback? onRetry}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          if (onRetry != null)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: onRetry,
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _updateMapMarkers() {
+    setState(() {
+      _markers.clear();
+      if (_pickupLocation != null) {
+        _markers.add(Marker(
+          markerId: const MarkerId('pickup'),
+          position: _pickupLocation!,
+          icon: _pickupMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          infoWindow: const InfoWindow(title: 'نقطة الانطلاق'),
+        ));
+      }
+      if (_dropoffLocation != null) {
+        _markers.add(Marker(
+          markerId: const MarkerId('dropoff'),
+          position: _dropoffLocation!,
+          icon: _dropoffMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'نقطة الوصول'),
+        ));
+      }
+    });
+  }
+
+  void _drawRouteLine() {
+    if (_pickupLocation == null || _dropoffLocation == null) return;
+    
+    setState(() {
+      _polylines.clear();
+      _polylines.add(Polyline(
+        polylineId: const PolylineId('route'),
+        points: [_pickupLocation!, _dropoffLocation!],
+        color: AppColors.primary,
+        width: 5,
+        patterns: [PatternItem.dash(20), PatternItem.gap(10)],
+      ));
+    });
+  }
+
+  void _adjustMapCamera() {
+    if (_mapController == null) return;
+    
+    if (_pickupLocation != null && _dropoffLocation != null) {
+      LatLngBounds bounds = LatLngBounds(
+        southwest: LatLng(
+          _pickupLocation!.latitude < _dropoffLocation!.latitude
+              ? _pickupLocation!.latitude
+              : _dropoffLocation!.latitude,
+          _pickupLocation!.longitude < _dropoffLocation!.longitude
+              ? _pickupLocation!.longitude
+              : _dropoffLocation!.longitude,
+        ),
+        northeast: LatLng(
+          _pickupLocation!.latitude > _dropoffLocation!.latitude
+              ? _pickupLocation!.latitude
+              : _dropoffLocation!.latitude,
+          _pickupLocation!.longitude > _dropoffLocation!.longitude
+              ? _pickupLocation!.longitude
+              : _dropoffLocation!.longitude,
+        ),
+      );
+      _mapController!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 50));
+    } else if (_pickupLocation != null) {
+      _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_pickupLocation!, 15));
+    }
+  }
+
+  void _showExitConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد الخروج'),
+        content: const Text('هل أنت متأكد أنك تريد الخروج من هذه الشاشة؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            child: const Text('خروج', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelConfirmationDialog() {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تأكيد الإلغاء'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('هل أنت متأكد أنك تريد إلغاء هذه الرحلة؟'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'سبب الإلغاء',
+                hintText: 'الرجاء توضيح سبب الإلغاء',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('تراجع'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (reasonController.text.isNotEmpty) {
+                Navigator.pop(context);
+                _rejectRide(reasonController.text);
+              }
+            },
+            child: const Text('تأكيد الإلغاء', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
